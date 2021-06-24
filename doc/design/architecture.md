@@ -106,7 +106,7 @@ None --> Planning +------>------->------> Installing +---> Complete
 | RequiresApproval | occurs when using manual approval, will not transition phase until `approved` field is true    |
 | Installing       | resolved resources in the InstallPlan `Status` block are being created                      |
 | Complete         | all resolved resources in the `Status` block exist                                             |
-| Failed           | occurs when resources fail to install or there is an invalid OperatorGroup                     |
+| Failed           | occurs when bundle unpacking fails                     |
 
 ### Subscription Control Loop
 

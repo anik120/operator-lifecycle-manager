@@ -166,12 +166,12 @@ func TestSyncInstallPlanUnhappy(t *testing.T) {
 	)
 
 	tests := []struct {
-		testName      string
-		err           error
-		in            *v1alpha1.InstallPlan
-		expectedPhase v1alpha1.InstallPlanPhase
-
-		clientObjs []runtime.Object
+		testName          string
+		err               error
+		in                *v1alpha1.InstallPlan
+		expectedPhase     v1alpha1.InstallPlanPhase
+		expectedCondition *v1alpha1.InstallPlanCondition
+		clientObjs        []runtime.Object
 	}{
 		{
 			testName:      "NoStatus",
@@ -182,16 +182,20 @@ func TestSyncInstallPlanUnhappy(t *testing.T) {
 		{
 			// This checks that an installplan is marked as failed when no operatorgroup is present
 			testName:      "HasSteps/NoOperatorGroup",
-			err:           nil,
-			expectedPhase: v1alpha1.InstallPlanPhaseFailed,
-			in:            ipWithSteps,
+			err:           fmt.Errorf("attenuated service account query failed - no operator group found that is managing this namespace"),
+			expectedPhase: v1alpha1.InstallPlanPhaseInstalling,
+			expectedCondition: &v1alpha1.InstallPlanCondition{Type: v1alpha1.InstallPlanInstalled, Status: corev1.ConditionFalse, Reason: v1alpha1.InstallPlanReasonInstallCheckFailed,
+				Message: "attenuated service account query failed - no operator group found that is managing this namespace"},
+			in: ipWithSteps,
 		},
 		{
 			// This checks that an installplan is marked as failed when multiple operator groups are present for the same namespace
 			testName:      "HasSteps/TooManyOperatorGroups",
-			err:           nil,
-			expectedPhase: v1alpha1.InstallPlanPhaseFailed,
+			err:           fmt.Errorf("attenuated service account query failed - more than one operator group(s) are managing this namespace count=2"),
+			expectedPhase: v1alpha1.InstallPlanPhaseInstalling,
 			in:            ipWithSteps,
+			expectedCondition: &v1alpha1.InstallPlanCondition{Type: v1alpha1.InstallPlanInstalled, Status: corev1.ConditionFalse, Reason: v1alpha1.InstallPlanReasonInstallCheckFailed,
+				Message: "attenuated service account query failed - more than one operator group(s) are managing this namespace count=2"},
 			clientObjs: []runtime.Object{
 				operatorGroup("og1", "sa", namespace,
 					&corev1.ObjectReference{
@@ -210,9 +214,11 @@ func TestSyncInstallPlanUnhappy(t *testing.T) {
 		{
 			// This checks that an installplan is marked as failed when no service account is synced for the operator group, i.e the service account ref doesn't exist
 			testName:      "HasSteps/NonExistentServiceAccount",
-			err:           nil,
-			expectedPhase: v1alpha1.InstallPlanPhaseFailed,
-			in:            ipWithSteps,
+			err:           fmt.Errorf("attenuated service account query failed - please make sure the service account exists. sa=sa1 operatorgroup=ns/og"),
+			expectedPhase: v1alpha1.InstallPlanPhaseInstalling,
+			expectedCondition: &v1alpha1.InstallPlanCondition{Type: v1alpha1.InstallPlanInstalled, Status: corev1.ConditionFalse, Reason: v1alpha1.InstallPlanReasonInstallCheckFailed,
+				Message: "attenuated service account query failed - please make sure the service account exists. sa=sa1 operatorgroup=ns/og"},
+			in: ipWithSteps,
 			clientObjs: []runtime.Object{
 				operatorGroup("og", "sa1", namespace, nil),
 			},
@@ -236,6 +242,11 @@ func TestSyncInstallPlanUnhappy(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, tt.expectedPhase, ip.Status.Phase)
+
+			if tt.expectedCondition != nil {
+				require.True(t, hasExpectedCondition(ip, *tt.expectedCondition))
+			}
+
 		})
 	}
 }
@@ -1829,4 +1840,16 @@ func operatorGroup(ogName, saName, namespace string, saRef *corev1.ObjectReferen
 			ServiceAccountRef: saRef,
 		},
 	}
+}
+
+func hasExpectedCondition(ip *v1alpha1.InstallPlan, expectedCondition v1alpha1.InstallPlanCondition) bool {
+
+	hasCondition := false
+	for _, cond := range ip.Status.Conditions {
+		if cond.Type == expectedCondition.Type && cond.Message == expectedCondition.Message && cond.Status == expectedCondition.Status {
+			hasCondition = true
+			break
+		}
+	}
+	return hasCondition
 }

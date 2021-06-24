@@ -1389,25 +1389,23 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	ref, err := querier()
 	if err != nil {
 
-		// Retry sync if non-fatal error
-		if !scoped.IsOperatorGroupError(err) {
-			syncError = fmt.Errorf("attenuated service account query failed - %v", err)
-			return
-		}
+		// Set status condition/message and retry sync if any error
+		ipFailError := fmt.Errorf("attenuated service account query failed - %v", err)
+		logger.Infof(ipFailError.Error())
 
-		// Mark the InstallPlan as failed for a fatal Operator Group related error
-		logger.Infof("attenuated service account query failed - %v", err)
-		ipFailError := fmt.Errorf("invalid operator group - %v", err)
-
-		if err := o.transitionInstallPlanToFailed(plan, logger, v1alpha1.InstallPlanReasonInstallCheckFailed, ipFailError.Error()); err != nil {
-			// retry for failure to update status
+		now := o.now()
+		out := plan.DeepCopy()
+		out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
+			v1alpha1.InstallPlanReasonInstallCheckFailed, ipFailError.Error(), &now))
+		_, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(context.TODO(), out, metav1.UpdateOptions{})
+		if err != nil {
+			logger = logger.WithField("updateError", err.Error())
+			logger.Errorf("error updating InstallPlan status")
 			syncError = err
 			return
 		}
 
-		// Requeue subscription to propagate SubscriptionInstallPlanFailed condtion to subscription
-		o.requeueSubscriptionForInstallPlan(plan, logger)
-
+		syncError = ipFailError
 		return
 	}
 
@@ -1428,6 +1426,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 
 	// Attempt to unpack bundles before installing
 	// Note: This should probably use the attenuated client to prevent users from resolving resources they otherwise don't have access to.
+	fmt.Printf("len of bundlelookups: %d", len(plan.Status.BundleLookups))
 	if len(plan.Status.BundleLookups) > 0 {
 		unpacked, out, err := o.unpackBundles(plan)
 		if err != nil {

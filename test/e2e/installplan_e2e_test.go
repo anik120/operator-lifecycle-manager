@@ -3145,7 +3145,7 @@ var _ = Describe("Install Plan", func() {
 		require.Equal(GinkgoT(), 1, len(ips.Items), "If this test fails it should be taken seriously and not treated as a flake. \n%v", ips.Items)
 	})
 
-	It("should fail an InstallPlan when no OperatorGroup is present", func() {
+	FIt("should include a condition with reason InstallCheckFailed in InstallPlan status when no OperatorGroup is present", func() {
 
 		ns := &corev1.Namespace{}
 		ns.SetName(genName("ns-"))
@@ -3176,11 +3176,12 @@ var _ = Describe("Install Plan", func() {
 		_, err = crc.OperatorsV1alpha1().InstallPlans(ns.GetName()).UpdateStatus(context.TODO(), outIP, metav1.UpdateOptions{})
 		Expect(err).NotTo(HaveOccurred())
 
-		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseFailed))
+		fetchedInstallPlan, err := fetchInstallPlanWithNamespace(GinkgoT(), crc, installPlanName, ns.GetName(), buildInstallPlanPhaseCheckFunc(operatorsv1alpha1.InstallPlanPhaseInstalling))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(fetchedInstallPlan).NotTo(BeNil())
-		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with phase %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
-		ctx.Ctx().Logf(fmt.Sprintf("Install plan %s fetched with conditions %+v", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Conditions))
+		expectedCondition := v1alpha1.InstallPlanCondition{Type: v1alpha1.InstallPlanInstalled, Status: corev1.ConditionFalse, Reason: v1alpha1.InstallPlanReasonInstallCheckFailed,
+			Message: "attenuated service account query failed - no operator group found that is managing this namespace"}
+		Expect(hasExpectedCondition(fetchedInstallPlan, expectedCondition)).To(BeTrue())
 	})
 
 	It("should fail an InstallPlan when multiple OperatorGroups are present", func() {
@@ -4072,7 +4073,7 @@ func validateCRDVersions(t GinkgoTInterface, c operatorclient.ClientInterface, n
 
 func buildInstallPlanPhaseCheckFunc(phases ...operatorsv1alpha1.InstallPlanPhase) checkInstallPlanFunc {
 	return func(fip *operatorsv1alpha1.InstallPlan) bool {
-		ctx.Ctx().Logf("installplan is %s", fip.Status.Phase)
+		ctx.Ctx().Logf("installplan %v is in phase %v", fip.GetName(), fip.Status.Phase)
 		satisfiesAny := false
 		for _, phase := range phases {
 			satisfiesAny = satisfiesAny || fip.Status.Phase == phase
@@ -4328,4 +4329,16 @@ func newInstallPlanWithDummySteps(name, namespace string, phase operatorsv1alpha
 			},
 		},
 	}
+}
+
+func hasExpectedCondition(ip *v1alpha1.InstallPlan, expectedCondition v1alpha1.InstallPlanCondition) bool {
+
+	hasCondition := false
+	for _, cond := range ip.Status.Conditions {
+		if cond.Type == expectedCondition.Type && cond.Message == expectedCondition.Message && cond.Status == expectedCondition.Status {
+			hasCondition = true
+			break
+		}
+	}
+	return hasCondition
 }
