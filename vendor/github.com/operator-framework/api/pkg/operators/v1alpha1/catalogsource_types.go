@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -27,6 +28,8 @@ const (
 	// SourceTypeGrpc specifies a CatalogSource that can use an operator registry image to generate a
 	// registry-server or connect to a pre-existing registry at an address.
 	SourceTypeGrpc SourceType = "grpc"
+
+	DefaultRegistryPollDuration string = "3h"
 )
 
 const (
@@ -92,7 +95,28 @@ type UpdateStrategy struct {
 	*RegistryPoll `json:"registryPoll,omitempty"`
 }
 
+func (u *UpdateStrategy) UnmarshalJSON(b []byte) error {
+
+	var data map[string]map[string]string
+	err := json.Unmarshal(b, &data)
+
+	registryPoll := &RegistryPoll{}
+	pd, err := time.ParseDuration(data["registryPoll"]["interval"])
+	if err != nil {
+		registryPoll.ParsingError = fmt.Errorf("error parsing spec.updateStrategy.registryPoll.interval. Setting the default value of %v. Error:%v", DefaultRegistryPollDuration, err)
+		defaultTime, _ := time.ParseDuration(DefaultRegistryPollDuration)
+		registryPoll.Interval = &metav1.Duration{defaultTime}
+	} else {
+		registryPoll.ParsingError = nil
+		registryPoll.Interval = &metav1.Duration{pd}
+	}
+	u.RegistryPoll = registryPoll
+	return nil
+}
+
 type RegistryPoll struct {
+	ParsingError error
+
 	// Interval is used to determine the time interval between checks of the latest catalog source version.
 	// The catalog operator polls to see if a new version of the catalog source is available.
 	// If available, the latest image is pulled and gRPC traffic is directed to the latest catalog source.
