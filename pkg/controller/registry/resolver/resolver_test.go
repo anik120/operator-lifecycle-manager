@@ -51,7 +51,7 @@ func TestSolveOperators(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs, nil)
 	assert.NoError(t, err)
 
 	expected := cache.OperatorSet{
@@ -85,7 +85,7 @@ func TestDisjointChannelGraph(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	_, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	_, err := satResolver.SolveOperators([]string{namespace}, nil, subs, nil)
 	require.Error(t, err, "a unique replacement chain within a channel is required to determine the relative order between channel entries, but 2 replacement chains were found in channel \"alpha\" of package \"packageA\": packageA.side1.v2...packageA.side1.v1, packageA.side2.v2...packageA.side2.v1")
 }
 
@@ -117,7 +117,7 @@ func TestPropertiesAnnotationHonored(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, nil)
 	assert.NoError(t, err)
 
 	expected := cache.OperatorSet{
@@ -156,7 +156,7 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, nil)
 	assert.NoError(t, err)
 	expected := cache.OperatorSet{
 		"packageB.v1": genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, nil, "", false),
@@ -204,7 +204,7 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(operators))
 	for _, op := range operators {
@@ -274,7 +274,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(operators))
 
@@ -349,7 +349,7 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(operators))
 
@@ -429,7 +429,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs, nil)
 	assert.NoError(t, err)
 	expected := cache.OperatorSet{
 		"packageA.v1": genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm",
@@ -462,7 +462,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err = satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs)
+	operators, err = satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs, nil)
 	assert.NoError(t, err)
 	expected = cache.OperatorSet{
 		"packageA.v1": genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm",
@@ -496,7 +496,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err = satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs)
+	operators, err = satResolver.SolveOperators([]string{"olm"}, []*v1alpha1.ClusterServiceVersion{}, subs, nil)
 	assert.NoError(t, err)
 	expected = cache.OperatorSet{
 		"packageA.v1": genOperator("packageA.v1", "0.0.1", "", "packageA", "alpha", "community", "olm",
@@ -554,7 +554,7 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(operators))
 
@@ -608,7 +608,7 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, nil)
 	assert.NoError(t, err)
 
 	expected := cache.OperatorSet{
@@ -669,7 +669,7 @@ func TestSolveOperators_WithLabelDependencies(t *testing.T) {
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(operators))
 
@@ -718,7 +718,7 @@ func TestSolveOperators_WithUnsatisfiableLabelDependencies(t *testing.T) {
 		cache: getFakeOperatorCache(fakeNamespacedOperatorCache),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs, nil)
 	assert.Error(t, err)
 	assert.Equal(t, 0, len(operators))
 }
@@ -790,7 +790,7 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(operators))
 	expected := cache.OperatorSet{
@@ -868,7 +868,7 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, nil)
 	assert.NoError(t, err)
 	expected := cache.OperatorSet{
 		"packageB.v1": genOperator("packageB.v1", "1.0.0", "", "packageB", "alpha", "community", "olm", nil, nil, opToAddVersionDeps, "", false),
@@ -917,7 +917,7 @@ func TestSolveOperators_PreferCatalogInSameNamespace(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs, nil)
 	assert.NoError(t, err)
 
 	expected := cache.OperatorSet{
@@ -956,7 +956,7 @@ func TestSolveOperators_ResolveOnlyInCachedNamespaces(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs, nil)
 	assert.Error(t, err)
 	assert.Equal(t, err.Error(), "expected exactly one operator, got 0", "did not expect to receive a resolution")
 	assert.Len(t, operators, 0)
@@ -994,7 +994,7 @@ func TestSolveOperators_PreferDefaultChannelInResolution(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs, nil)
 	assert.NoError(t, err)
 
 	// operator should be from the default stable channel
@@ -1035,7 +1035,7 @@ func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencie
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{namespace}, csvs, subs, nil)
 	assert.NoError(t, err)
 
 	// operator should be from the default stable channel
@@ -1087,7 +1087,7 @@ func TestSolveOperators_SubscriptionlessOperatorsSatisfyDependencies(t *testing.
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, nil)
 	assert.NoError(t, err)
 	expected := cache.OperatorSet{
 		"packageB.v1.0.1": genOperator("packageB.v1.0.1", "1.0.1", "packageB.v1.0.0", "packageB", "alpha", catalog.Name, catalog.Namespace, Provides, nil, cache.APISetToDependencies(Provides, nil), "", false),
@@ -1133,7 +1133,7 @@ func TestSolveOperators_SubscriptionlessOperatorsCanConflict(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	_, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs)
+	_, err := satResolver.SolveOperators([]string{"olm"}, csvs, subs, nil)
 	assert.Error(t, err)
 }
 
@@ -1180,7 +1180,7 @@ func TestSolveOperators_PackageCannotSelfSatisfy(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs, nil)
 	assert.NoError(t, err)
 	expected := cache.OperatorSet{
 		"opA.v1.0.0": genOperator("opA.v1.0.0", "1.0.0", "", "packageA", "stable", catalog.Name, catalog.Namespace, RequiresBoth, nil, nil, "", false),
@@ -1284,7 +1284,7 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 			}
 
 			var err error
-			operators, err = satResolver.SolveOperators([]string{"olm"}, csvs, p.subs)
+			operators, err = satResolver.SolveOperators([]string{"olm"}, csvs, p.subs, nil)
 			assert.NoError(t, err)
 			for k := range p.expected {
 				require.NotNil(t, operators[k])
@@ -1383,7 +1383,7 @@ func TestSolveOperators_WithoutDeprecated(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{catalog.Namespace}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{catalog.Namespace}, nil, subs, nil)
 	assert.Empty(t, operators)
 	assert.IsType(t, solver.NotSatisfiable{}, err)
 }
@@ -1411,7 +1411,7 @@ func TestSolveOperatorsWithDeprecatedInnerChannelEntry(t *testing.T) {
 		log: logger,
 	}
 
-	operators, err := resolver.SolveOperators([]string{catalog.Namespace}, nil, subs)
+	operators, err := resolver.SolveOperators([]string{catalog.Namespace}, nil, subs, nil)
 	assert.NoError(t, err)
 	assert.Len(t, operators, 1)
 	assert.Contains(t, operators, "a-3")
@@ -1467,7 +1467,7 @@ func TestSolveOperators_WithSkipsAndStartingCSV(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs, nil)
 	assert.NoError(t, err)
 	opB.SourceInfo.StartingCSV = "packageB.v1"
 	expected := cache.OperatorSet{
@@ -1503,7 +1503,7 @@ func TestSolveOperators_WithSkips(t *testing.T) {
 		log:   logrus.New(),
 	}
 
-	operators, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	operators, err := satResolver.SolveOperators([]string{namespace}, nil, subs, nil)
 	assert.NoError(t, err)
 	expected := cache.OperatorSet{
 		"packageB.v2": opB2,
@@ -1539,7 +1539,7 @@ func TestSolveOperatorsWithSkipsPreventingSelection(t *testing.T) {
 		log: logger,
 	}
 
-	_, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
+	_, err := satResolver.SolveOperators([]string{namespace}, nil, subs, nil)
 	assert.IsType(t, solver.NotSatisfiable{}, err)
 }
 
@@ -1577,7 +1577,7 @@ func TestSolveOperatorsWithClusterServiceVersionHavingDependency(t *testing.T) {
 		log: log,
 	}
 
-	operators, err := r.SolveOperators([]string{namespace}, csvs, subs)
+	operators, err := r.SolveOperators([]string{namespace}, csvs, subs, nil)
 	assert.NoError(t, err)
 	require.Empty(t, operators)
 }

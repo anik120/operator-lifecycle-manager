@@ -47,7 +47,7 @@ func (w *debugWriter) Write(b []byte) (int, error) {
 	return n, nil
 }
 
-func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) (cache.OperatorSet, error) {
+func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription, constraintBuilders []func(cache.OperatorFinder) solver.Constraint) (cache.OperatorSet, error) {
 	var errs []error
 
 	installables := make(map[solver.Identifier]solver.Installable, 0)
@@ -101,6 +101,14 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 			installables[i.Identifier()] = i
 		}
 	}
+
+	clusterInstallable, err := r.getClusterInstallable(namespacedCache, constraintBuilders)
+
+	if err != nil {
+		return nil, err
+	}
+
+	installables[clusterInstallable.Identifier()] = clusterInstallable
 
 	r.addInvariants(namespacedCache, installables)
 
@@ -171,6 +179,14 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	}
 
 	return operators, nil
+}
+
+func (r *SatResolver) getClusterInstallable(of cache.OperatorFinder, cb []func(cache.OperatorFinder) solver.Constraint) (solver.Installable, error) {
+	installable := GenericInstallable{
+		identifier: "clusterValues",
+	}
+
+	return installable, nil
 }
 
 func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, current *cache.Operator, namespacedCache cache.MultiCatalogOperatorFinder, visited map[*cache.Operator]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {

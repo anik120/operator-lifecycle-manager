@@ -50,11 +50,12 @@ func (e OverwriteErr) Error() string {
 }
 
 const (
-	GVKType        = "olm.gvk"
-	PackageType    = "olm.package"
-	DeprecatedType = "olm.deprecated"
-	LabelType      = "olm.label"
-	PropertyKey    = "olm.properties"
+	GVKType               = "olm.gvk"
+	PackageType           = "olm.package"
+	DeprecatedType        = "olm.deprecated"
+	LabelType             = "olm.label"
+	PropertyKey           = "olm.properties"
+	ClusterConstraintType = "olm.clusterConstraint"
 )
 
 // APIKey stores GroupVersionKind for use as map keys
@@ -220,6 +221,15 @@ type LabelDependency struct {
 	Label string `json:"label" yaml:"label"`
 }
 
+type ClusterDependency struct {
+	// The property of the cluster, eg kubeVersion, os, arch etc
+	Property string `json:"property"`
+	// The comparison operator, one of > (greater than), < (less than), = (equals), >= (greater than equals) or <= (less than equals)
+	ComparisonOperator string `json: "comparison_operator"`
+	// The value of the property on cluster, eg for kubeVersion, Value = 1.22
+	Value string `json:"value"`
+}
+
 type GVKProperty struct {
 	// The group of GVK based property
 	Group string `json:"group" yaml:"group"`
@@ -289,6 +299,16 @@ func (pd *PackageDependency) Validate() []error {
 	return errs
 }
 
+// Validate validates a cluster dependency and returns error(s)
+func (cd *ClusterDependency) Validate() []error {
+	errs := []error{}
+
+	if cd.Property == "" {
+		errs = append(errs, fmt.Errorf("Property cannot be empty"))
+	}
+	return errs
+}
+
 // GetDependencies returns the list of dependency
 func (d *DependenciesFile) GetDependencies() []*Dependency {
 	var dependencies []*Dependency
@@ -329,6 +349,12 @@ func (e *Dependency) GetTypeValue() interface{} {
 			return nil
 		}
 		return dep
+	case ClusterConstraintType:
+		dep := ClusterDependency{}
+		err := json.Unmarshal([]byte(e.GetValue()), &dep)
+		if err != nil {
+			return nil
+		}
 	}
 	return nil
 }

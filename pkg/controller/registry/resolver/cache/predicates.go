@@ -224,6 +224,50 @@ func (r replacesPredicate) String() string {
 	return fmt.Sprintf("replaces: %v", string(r))
 }
 
+type clusterConstraintPredicate struct {
+	dep opregistry.ClusterDependency
+}
+
+func ClusterConstraintPredicate(d opregistry.ClusterDependency) OperatorPredicate {
+	return &clusterConstraintPredicate{
+		dep: d,
+	}
+}
+
+func (c clusterConstraintPredicate) String() string {
+	return fmt.Sprintf("%v %v %v", c.dep.Property, c.dep.ComparisonOperator, c.dep.Value)
+}
+
+func (c clusterConstraintPredicate) Test(o *Operator) bool {
+	// var dep opregistry.ClusterDependency
+	// err := json.Unmarshal([]byte(d.Value), &dep)
+	// // make the comparison
+	// logger := logrus.New()
+	// if strings.ToLower(c.dep.ComparisonOperator) == "string" {
+	// 	if c.dep.Value == c.configMap.Data[c.dep.Property] {
+	// 		return true
+	// 	} else {
+	// 		return false
+	// 	}
+	// }
+	// depVersion, err := ver.NewVersion(c.configMap.Data[c.dep.Property])
+	// if err != nil {
+	// 	logger.Infof("(anik120)error converting dependency value to version: %v", err)
+	// 	return false
+	// }
+	// constraint, err := ver.NewConstraint(c.dep.ComparisonOperator + c.dep.Value)
+	// if err != nil {
+	// 	logger.Infof("(anik120)error creating constraint: %v", err)
+	// 	return false
+	// }
+	// logger.Infof("(anik120)Checking constraint: %v", constraint.String())
+	// if constraint.Check(depVersion) {
+	// 	return true
+	// }
+
+	return false
+}
+
 type andPredicate struct {
 	predicates []OperatorPredicate
 }
@@ -341,10 +385,22 @@ func PredicateForProperty(property *api.Property) (OperatorPredicate, error) {
 	return p(property.Value)
 }
 
+func PredicateForClusterConstraint(property *api.Property) (OperatorPredicate, error) {
+	if property == nil {
+		return nil, nil
+	}
+	p, ok := predicates[property.Type]
+	if !ok {
+		return nil, nil
+	}
+	return p(property.Value)
+}
+
 var predicates = map[string]func(string) (OperatorPredicate, error){
-	"olm.gvk.required":     predicateForRequiredGVKProperty,
-	"olm.package.required": predicateForRequiredPackageProperty,
-	"olm.label.required":   predicateForRequiredLabelProperty,
+	"olm.gvk.required":               predicateForRequiredGVKProperty,
+	"olm.package.required":           predicateForRequiredPackageProperty,
+	"olm.label.required":             predicateForRequiredLabelProperty,
+	"olm.clusterConstraint.required": predicateForClusterConstraint,
 }
 
 func predicateForRequiredGVKProperty(value string) (OperatorPredicate, error) {
@@ -386,4 +442,12 @@ func predicateForRequiredLabelProperty(value string) (OperatorPredicate, error) 
 		return nil, err
 	}
 	return LabelPredicate(label.Label), nil
+}
+
+func predicateForClusterConstraint(value string) (OperatorPredicate, error) {
+	var dep opregistry.ClusterDependency
+	if err := json.Unmarshal([]byte(value), &dep); err != nil {
+		return nil, err
+	}
+	return ClusterConstraintPredicate(dep), nil
 }

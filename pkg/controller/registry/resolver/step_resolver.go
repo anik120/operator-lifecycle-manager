@@ -87,8 +87,14 @@ func (r *OperatorStepResolver) ResolveSteps(namespace string) ([]*v1alpha1.Step,
 	}
 
 	var operators cache.OperatorSet
+	clusterValues, err := r.clusterValues(r.globalCatalogNamespace)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// build constraintBuilders
 	namespaces := []string{namespace, r.globalCatalogNamespace}
-	operators, err = r.satResolver.SolveOperators(namespaces, csvs, subs)
+	operators, err = r.satResolver.SolveOperators(namespaces, csvs, subs, constraintBuilders)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -233,4 +239,21 @@ func (r *OperatorStepResolver) listSubscriptions(namespace string) ([]*v1alpha1.
 	}
 
 	return subs, nil
+}
+
+func (r *OperatorStepResolver) clusterValues(namespace string) (map[string]string, error) {
+	// listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
+	list, err := r.kubeclient.CoreV1().ConfigMaps(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	var clusterValues map[string]string
+	for i := range list.Items {
+		for key, value := range list.Items[i].Data {
+			clusterValues[key] = value
+		}
+	}
+
+	return clusterValues, nil
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/blang/semver/v4"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -217,6 +218,7 @@ type Operator struct {
 	Bundle       *api.Bundle
 	SourceInfo   *OperatorSourceInfo
 	Properties   []*api.Property
+	logger       *logrus.Logger
 }
 
 func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey registry.CatalogKey, defaultChannel string) (*Operator, error) {
@@ -273,6 +275,7 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey reg
 		SourceInfo:   sourceInfo,
 		Properties:   properties,
 		Skips:        bundle.Skips,
+		logger:       logrus.New(),
 	}
 
 	if r, err := semver.ParseRange(o.Bundle.SkipRange); err == nil {
@@ -364,14 +367,25 @@ func (o *Operator) Inline() bool {
 
 func (o *Operator) DependencyPredicates() (predicates []OperatorPredicate, err error) {
 	predicates = make([]OperatorPredicate, 0)
+
 	for _, property := range o.Properties {
-		predicate, err := PredicateForProperty(property)
-		if err != nil {
-			return nil, err
+		var predicate OperatorPredicate
+		if property.Type == "olm.clusterConstraint.required" {
+			o.logger.Info("(anik120) Found cluster constraint, fetching configmap")
+			predicate, err = PredicateForClusterConstraint(property)
+			if predicate == nil {
+				continue
+			}
+		} else {
+			predicate, err = PredicateForProperty(property)
+			if err != nil {
+				return nil, err
+			}
+			if predicate == nil {
+				continue
+			}
 		}
-		if predicate == nil {
-			continue
-		}
+		o.logger.Info("(anik120) Appending cluster constraint predicate")
 		predicates = append(predicates, predicate)
 	}
 	return
@@ -482,6 +496,32 @@ func LegacyDependenciesToProperties(dependencies []*api.Dependency) ([]*api.Prop
 			result = append(result, &api.Property{
 				Type:  "olm.label.required",
 				Value: dependency.Value,
+			})
+		case "olm.clusterConstraint":
+			var vfrom struct {
+				Property           string `json:"property"`
+				ComparisonOperator string `json:"comparisonOperator"`
+				Value              string `json:"value"`
+			}
+			if err := json.Unmarshal([]byte(dependency.Value), &vfrom); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal legacy 'olm.clusterConstraint' dependency: %w", err)
+			}
+			vto := struct {
+				Property           string `json:"property"`
+				ComparisonOperator string `json:"comparisonOperator"`
+				Value              string `json:"value"`
+			}{
+				Property:           vfrom.Property,
+				ComparisonOperator: vfrom.ComparisonOperator,
+				Value:              vfrom.Value,
+			}
+			vb, err := json.Marshal(&vto)
+			if err != nil {
+				return nil, fmt.Errorf("unexpected error marshaling generated 'olm.clusterConstraint.required' property: %w", err)
+			}
+			result = append(result, &api.Property{
+				Type:  "olm.clusterConstraint.required",
+				Value: string(vb),
 			})
 		}
 	}
