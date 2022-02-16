@@ -118,6 +118,14 @@ func NewStepResourceFromBundle(bundle *api.Bundle, namespace, replaces, catalogS
 		return nil, err
 	}
 
+	if csv.APIVersion == "" {
+		return nil, fmt.Errorf("Bundle CSV %s missing metadata.APIVersion", csv.Name)
+	}
+
+	if csv.Kind == "" {
+		return nil, fmt.Errorf("Bundle CSV %s missing metadata.Kind", csv.Name)
+	}
+
 	csv.SetNamespace(namespace)
 	csv.Spec.Replaces = replaces
 	anno, err := projection.PropertiesAnnotationFromPropertyList(bundle.Properties)

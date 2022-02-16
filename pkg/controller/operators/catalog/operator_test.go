@@ -604,6 +604,30 @@ func TestExecutePlan(t *testing.T) {
 				},
 			},
 		},
+
+		{
+			testName: "NoAPISCV",
+			in: withSteps(installPlan("bad_plan", namespace, v1alpha1.InstallPlanPhaseInstalling, "CSVnames"),
+				[]*v1alpha1.Step{
+					{
+						Resolving: "csv",
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "operators.coreos.com",
+							Version:                "v1",
+							Kind:                   "ClusterServiceVersion",
+							Name:                   "csv",
+							Manifest:               toManifest(t, csvNoAPI("csv", namespace, nil, nil)),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+				}),
+
+			// []runtime.Object{ csvNoAPI("csv", namespace, nil, nil) },
+			want: []runtime.Object{installPlan("failed_plan", "default", v1alpha1.InstallPlanPhaseFailed)},
+			err:  nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1662,6 +1686,42 @@ func csv(name, namespace string, owned, required []string) *v1alpha1.ClusterServ
 		TypeMeta: metav1.TypeMeta{
 			Kind:       csvKind,
 			APIVersion: "operators.coreos.com/v1alpha1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+				Owned:    ownedCRDDescs,
+				Required: requiredCRDDescs,
+			},
+		},
+	}
+}
+
+// Creates a malformed CSV without an APIVersion for testing purposes
+func csvNoAPI(name, namespace string, owned, required []string) *v1alpha1.ClusterServiceVersion {
+	requiredCRDDescs := make([]v1alpha1.CRDDescription, 0)
+	for _, name := range required {
+		requiredCRDDescs = append(requiredCRDDescs, v1alpha1.CRDDescription{Name: name, Version: "v1", Kind: name})
+	}
+	if len(requiredCRDDescs) == 0 {
+		requiredCRDDescs = nil
+	}
+
+	ownedCRDDescs := make([]v1alpha1.CRDDescription, 0)
+	for _, name := range owned {
+		ownedCRDDescs = append(ownedCRDDescs, v1alpha1.CRDDescription{Name: name, Version: "v1", Kind: name})
+	}
+	if len(ownedCRDDescs) == 0 {
+		ownedCRDDescs = nil
+	}
+
+	return &v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       csvKind,
+			APIVersion: "",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,

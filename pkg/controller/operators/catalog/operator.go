@@ -1346,9 +1346,11 @@ type UnpackedBundleReference struct {
 }
 
 // unpackBundles makes one walk through the bundlelookups and attempts to progress them
-func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.InstallPlan, error) {
+func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.InstallPlan, error, bool) {
 	out := plan.DeepCopy()
 	unpacked := true
+
+	bundleUnpackWithFatalError := false
 
 	// The bundle timeout annotation if specified overrides the --bundle-unpack-timeout flag value
 	// If the timeout cannot be parsed it's set to < 0 and subsequently ignored
@@ -1398,6 +1400,7 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.In
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to turn bundle into steps: %v", err))
 			unpacked = false
+			bundleUnpackWithFatalError = true
 			continue
 		}
 
@@ -1428,10 +1431,13 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.In
 
 	if err := utilerrors.NewAggregate(errs); err != nil {
 		o.logger.Debugf("failed to unpack bundles: %v", err)
-		return false, nil, err
+		if bundleUnpackWithFatalError {
+			return false, nil, err, true
+		}
+		return false, nil, err, false
 	}
 
-	return unpacked, out, nil
+	return unpacked, out, nil, false
 }
 
 // gcInstallPlans garbage collects installplans that are too old
@@ -1582,8 +1588,16 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	// Attempt to unpack bundles before installing
 	// Note: This should probably use the attenuated client to prevent users from resolving resources they otherwise don't have access to.
 	if len(plan.Status.BundleLookups) > 0 {
-		unpacked, out, err := o.unpackBundles(plan)
+		unpacked, out, err, isErrorFatal := o.unpackBundles(plan)
 		if err != nil {
+			// capture fatal error due to problematic manifest
+			if isErrorFatal {
+				if err := o.transitionInstallPlanToFailed(plan, logger, v1alpha1.InstallPlanReasonInstallCheckFailed, err.Error()); err != nil {
+					// retry for failure to update status
+					syncError = err
+					return
+				}
+			}
 			// Retry sync if non-fatal error
 			syncError = fmt.Errorf("bundle unpacking failed: %v", err)
 			return
@@ -2168,6 +2182,17 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					err := json.Unmarshal([]byte(manifest), &sa)
 					if err != nil {
 						return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+					}
+
+					// After unmarshaling the JSON we need to check that the APIVersion and Kind
+					// were included and fail the installPlan if either was not
+
+					if sa.TypeMeta.APIVersion == "" {
+						return fmt.Errorf("Bundle manifests missing typemeta.ApiVersion")
+					}
+
+					if sa.TypeMeta.Kind == "" {
+						return fmt.Errorf("Bundle manifests missing typemeta.Kind")
 					}
 
 					// Update UIDs on all CSV OwnerReferences
