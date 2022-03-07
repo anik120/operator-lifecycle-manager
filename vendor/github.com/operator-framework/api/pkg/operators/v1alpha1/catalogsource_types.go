@@ -3,11 +3,12 @@ package v1alpha1
 import (
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"time"
 )
 
 const (
@@ -18,6 +19,10 @@ const (
 
 // SourceType indicates the type of backing store for a CatalogSource
 type SourceType string
+
+type CatalogSourceConditionType string
+
+type CatalogSourceConditionReason string
 
 const (
 	// SourceTypeInternal (deprecated) specifies a CatalogSource of type SourceTypeConfigmap
@@ -31,6 +36,12 @@ const (
 	SourceTypeGrpc SourceType = "grpc"
 )
 
+const // DefaultPollingIntervalInUse denotes if UpdateStrategy.PollingInterval on the spec of the CatalogSource is using the default value or not.
+DefaultPollingIntervalInUse CatalogSourceConditionType = "UsingDefaultPollingInterval"
+
+const // PollingIntervalInvalid denotes that the UpdateStrategy.PollingInterval on the spec of the CatalogSource is invalid.
+PollingIntervalInvalid CatalogSourceConditionReason = "PollingIntervalInvalid"
+
 const (
 	// CatalogSourceSpecInvalidError denotes when fields on the spec of the CatalogSource are not valid.
 	CatalogSourceSpecInvalidError ConditionReason = "SpecInvalidError"
@@ -38,8 +49,6 @@ const (
 	CatalogSourceConfigMapError ConditionReason = "ConfigMapError"
 	// CatalogSourceRegistryServerError denotes when there is an issue querying the specified registry server.
 	CatalogSourceRegistryServerError ConditionReason = "RegistryServerError"
-	// CatalogSourceIntervalInvalidError denotes if the registry polling interval is invalid.
-	CatalogSourceIntervalInvalidError ConditionReason = "InvalidIntervalError"
 )
 
 type CatalogSourceSpec struct {
@@ -142,7 +151,7 @@ func (u *UpdateStrategy) UnmarshalJSON(data []byte) (err error) {
 	}
 	duration, err := time.ParseDuration(registryPoll.RawInterval)
 	if err != nil {
-		registryPoll.ParsingError = fmt.Sprintf("error parsing spec.updateStrategy.registryPoll.interval. Using the default value of %s instead. Error: %s", DefaultRegistryPollDuration, err)
+		registryPoll.ParsingError = fmt.Sprintf("error parsing spec.updateStrategy.registryPoll.interval. Using the default value of %s instead. Error: %w", DefaultRegistryPollDuration, err)
 		registryPoll.Interval = &metav1.Duration{Duration: DefaultRegistryPollDuration}
 	} else {
 		registryPoll.Interval = &metav1.Duration{Duration: duration}
@@ -239,6 +248,35 @@ func (c *CatalogSource) SetError(reason ConditionReason, err error) {
 	if err != nil {
 		c.Status.Message = err.Error()
 	}
+}
+
+func (s *CatalogSourceStatus) SetCondition(cond metav1.Condition) metav1.Condition {
+	if s.Conditions == nil {
+		s.Conditions = make([]metav1.Condition, 0)
+	}
+	for i, existing := range s.Conditions {
+		if existing.Type != cond.Type {
+			continue
+		}
+		if existing.Status == cond.Status {
+			cond.LastTransitionTime = existing.LastTransitionTime
+		}
+		s.Conditions[i] = cond
+		return cond
+	}
+	cond.LastTransitionTime = metav1.NewTime(time.Now())
+	s.Conditions = append(s.Conditions, cond)
+	return cond
+}
+
+func (c *CatalogSource) ClearCondition(conditionType string) {
+	newConditionList := make([]metav1.Condition, 0)
+	for _, cnd := range c.Status.Conditions {
+		if cnd.Type != conditionType {
+			newConditionList = append(newConditionList, cnd)
+		}
+	}
+	c.Status.Conditions = newConditionList
 }
 
 func (c *CatalogSource) SetLastUpdateTime() {
